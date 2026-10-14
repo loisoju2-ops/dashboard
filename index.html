@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>ADC · Guest Records & Enquiry System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Poppins',sans-serif; background:#fff; color:#1f2e2b; line-height:1.5; }
+    :root {
+      --green:#0f6b3e; --green-light:#1e8a55; --green-soft:#e6f3ec;
+      --charcoal:#1f2e2b; --gray-text:#4f5f5c; --border:#dfe7e4; --white:#ffffff;
+      --shadow-sm:0 4px 12px rgba(0,0,0,.03); --shadow-md:0 8px 24px rgba(0,0,0,.06);
+      --radius-card:16px; --radius-btn:40px; --radius-input:12px;
+      --sidebar-width:260px;
+    }
+    a { text-decoration:none; color:inherit; }
+    button, .btn { font-family:'Poppins',sans-serif; cursor:pointer; border:none; transition:all .2s ease; }
+
+    .app-layout { display:flex; min-height:100vh; }
+
+    /* ===== SIDEBAR (BLACK) ===== */
+    .sidebar {
+      width:var(--sidebar-width); background:#000; border-right:1px solid #1a1a1a;
+      padding:24px 16px; display:flex; flex-direction:column; position:fixed;
+      top:0; left:0; height:100vh; overflow-y:auto; z-index:1000;
+    }
+    .sidebar-logo {
+      display:flex; align-items:center; justify-content:center;
+      padding:0 8px 24px; border-bottom:1px solid #1a1a1a; margin-bottom:20px;
+    }
+    .logo-img img {
+      width: 150px;
+      height: 120px;
+      object-fit: contain;
+      transition: filter .2s ease;
+    }
+    .logo-img img:hover {
+      filter: drop-shadow(0 0 18px #909090);
+    }
+
+    .sidebar-nav { display:flex; flex-direction:column; gap:4px; flex:1; }
+    .sidebar-nav a {
+      padding:12px 16px; border-radius:12px; color:#cfcfcf; font-weight:500;
+      font-size:.9rem; display:flex; align-items:center; transition:all .2s;
+    }
+    .sidebar-nav a:hover, .sidebar-nav a.active { background:#1a3a2a; color:#6ee7a5; }
+
+    .nav-divider { height:1px; background:#1a1a1a; margin:12px 8px; }
+    .nav-label {
+      font-size:.65rem; text-transform:uppercase; letter-spacing:1.2px;
+      color:#808080; padding:8px 16px 4px; font-weight:600;
+    }
+
+    /* ===== DROPDOWN FOR SHOW GUEST ===== */
+    .nav-dropdown {
+      display: flex;
+      flex-direction: column;
+    }
+    .nav-dropdown-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 8px 16px 4px;
+      background: transparent;
+      color: #808080;
+      font-size: .65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      text-align: left;
+      border: none;
+      cursor: pointer;
+      transition: color .2s;
+    }
+    .nav-dropdown-toggle:hover {
+      color: #cfcfcf;
+    }
+    .nav-dropdown-toggle .arrow {
+      font-size: 0.6rem;
+      transition: transform 0.3s ease;
+    }
+    .nav-dropdown-toggle.open .arrow {
+      transform: rotate(180deg);
+    }
+    .nav-dropdown-menu {
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      padding-left: 8px;
+      margin-top: 4px;
+    }
+    .nav-dropdown-menu.open {
+      display: flex;
+    }
+    /* The links inside the dropdown will automatically inherit .sidebar-nav a styles */
+
+    /* ===== MAIN (WHITE / BLANK) ===== */
+    .main-content {
+      flex:1; margin-left:var(--sidebar-width); padding:0; min-height:100vh;
+      display:flex; flex-direction:column; background:#fff;
+    }
+    
+    /* ===== DASHBOARD HEADER STYLES ===== */
+    .dashboard-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: #f2f2f2;
+      padding: 20px 40px;
+      border-bottom: 1px solid #ddd;
+      min-height: 100px;
+    }
+    .dashboard-header .header-logo img {
+      height: 60px;
+      object-fit: contain;
+    }
+    .dashboard-header .header-title h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #000;
+      margin: 0;
+    }
+    .dashboard-header .header-date {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: #000;
+      border: 1px solid #333;
+      padding: 8px 16px;
+      border-radius: 4px;
+      background: #fff;
+      white-space: nowrap;
+    }
+    .dashboard-body {
+      flex: 1;
+      min-height: 70vh;
+      padding: 40px;
+      background: #fff;
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+    }
+
+    /* Faint ADC watermark centered in the dashboard's blank area */
+    .dashboard-body::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: url("images/African Diaspora Channels Logo.png");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: min(72%, 760px) auto;
+      opacity: 0.10;
+      filter: brightness(0);
+      pointer-events: none;
+      z-index: -1;
+    }
+    /* ================================== */
+
+    /* MOBILE */
+    .mobile-toggle {
+      display:none; position:fixed; top:16px; left:16px; z-index:1100;
+      background:var(--green); color:white; width:44px; height:44px; border-radius:12px;
+      font-size:1.2rem; align-items:center; justify-content:center; box-shadow:var(--shadow-md);
+    }
+    .sidebar-overlay {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:999;
+    }
+
+    /* FORMS (used by sub-pages if loaded here) */
+    .form-card {
+      background:#fff; border-radius:var(--radius-card); box-shadow:var(--shadow-md);
+      padding:36px 32px; border:1px solid var(--border); max-width:900px;
+      margin:40px auto; width:calc(100% - 64px);
+    }
+    .form-card .form-header {
+      margin-bottom:28px; padding-bottom:20px; border-bottom:1px solid var(--border);
+    }
+    .form-card .form-header h2 { font-size:1.6rem; font-weight:600; color:var(--charcoal); margin-bottom:6px; }
+    .form-card .form-header .badge {
+      display:inline-block; padding:6px 16px; border-radius:40px; font-size:.8rem;
+      font-weight:500; background:var(--green-soft); color:var(--green);
+    }
+    .form-card .form-header .badge.lifestyle { background:#fdf2e9; color:#e67e22; }
+    .form-card .form-header .badge.morning { background:#eaf2f8; color:#2980b9; }
+    .form-card .form-header .badge.gov { background:#f4ecf7; color:#8e44ad; }
+
+    .form-section { margin-bottom:28px; }
+    .form-section h3 { font-size:1.05rem; font-weight:600; margin-bottom:18px; color:var(--charcoal); display:flex; align-items:center; gap:10px; }
+    .form-section h3 i { color:var(--green); font-size:.95rem; width:20px; }
+
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:4px; }
+    .form-group { display:flex; flex-direction:column; margin-bottom:14px; }
+    .form-group label { font-size:.85rem; font-weight:500; margin-bottom:6px; color:var(--charcoal); }
+    .form-group label .required { color:#c0392b; margin-left:3px; }
+    .form-control {
+      width:100%; padding:13px 16px; border:1.5px solid var(--border);
+      border-radius:var(--radius-input); font-family:'Poppins',sans-serif;
+      font-size:.9rem; background:#fefefe; color:#1f2e2b; transition:.2s;
+    }
+    .form-control:focus { outline:none; border-color:var(--green); box-shadow:0 0 0 4px rgba(15,107,62,.08); }
+    textarea.form-control { min-height:100px; resize:vertical; }
+    select.form-control {
+      appearance:none;
+      background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234f5f5c' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+      background-repeat:no-repeat; background-position:right 16px center; padding-right:40px;
+    }
+
+    .form-footer {
+      display:flex; justify-content:flex-end; gap:14px; margin-top:24px;
+      padding-top:20px; border-top:1px solid var(--border); flex-wrap:wrap;
+    }
+
+    /* BUTTONS */
+    .btn-primary {
+      background:var(--green); color:#fff; padding:12px 28px; border-radius:var(--radius-btn);
+      font-weight:500; font-size:.9rem; display:inline-flex; align-items:center;
+      gap:8px; box-shadow:0 6px 14px rgba(15,107,62,.15);
+    }
+    .btn-primary:hover { background:#0b5a33; transform:translateY(-1px); }
+    .btn-outline {
+      background:transparent; border:1.5px solid var(--green); color:var(--green);
+      padding:10px 24px; border-radius:var(--radius-btn); font-weight:500;
+      font-size:.9rem; display:inline-flex; align-items:center; gap:8px;
+    }
+    .btn-outline:hover { background:var(--green-soft); }
+
+    /* SUCCESS */
+    .success-card {
+      max-width:580px; margin:60px auto; background:#fff;
+      border-radius:var(--radius-card); padding:48px 36px; box-shadow:var(--shadow-md);
+      text-align:center; border:1px solid var(--border);
+    }
+    .success-card i { font-size:3rem; color:var(--green); margin-bottom:20px; }
+    .success-card h2 { font-size:1.6rem; margin-bottom:12px; color:var(--charcoal); }
+    .success-card .ref-box {
+      background:var(--green-soft); padding:16px; border-radius:12px;
+      margin:20px 0; font-size:1.15rem; font-weight:700; letter-spacing:1px; color:var(--green);
+    }
+
+    /* FOOTER */
+    .app-footer {
+      margin-top:auto; padding:18px 24px; border-top:1px solid var(--border);
+      text-align:center; font-size:.8rem; color:var(--gray-text); background:#fff;
+    }
+    .app-footer a { color:var(--green); font-weight:500; }
+
+    .hidden { display:none !important; }
+    .text-muted { color:var(--gray-text); }
+
+    @media (max-width:768px) {
+      .mobile-toggle { display:flex; }
+      .sidebar { transform:translateX(-100%); transition:transform .25s ease; width:280px; }
+      .sidebar.open { transform:translateX(0); }
+      .sidebar-overlay.open { display:block; }
+      .main-content { margin-left:0; }
+      .form-card { padding:24px 18px; width:calc(100% - 24px); margin:80px 12px 40px; }
+      .form-row { grid-template-columns:1fr; gap:0; }
+      .form-footer { flex-direction:column; }
+      .form-footer .btn { width:100%; justify-content:center; }
+      .logo-img img { width:120px; height:100px; }
+      
+      /* Responsive Dashboard Header */
+      .dashboard-header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+        padding: 20px;
+        margin-top: 60px; /* Space for mobile toggle */
+      }
+      .dashboard-header .header-date {
+        font-size: 0.9rem;
+      }
+      .dashboard-body {
+        min-height: 65vh;
+        padding: 24px;
+      }
+      .dashboard-body::before {
+        background-size: 88% auto;
+        opacity: 0.08;
+      }
+    }
+    @media (max-width:480px) {
+      .logo-text span { display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<button class="mobile-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">
+  &#9776;
+</button>
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-img">
+        <img src="images/African Diaspora Channels Logo.png" alt="ADC Logo">
+      </div>
+    </div>
+
+    <!-- SIDEBAR NAVIGATION -->
+    <nav class="sidebar-nav" id="sidebarNav">
+      
+      <a href="enquires.html">General Enquiry</a>
+      <a href="haveshow.html">Have your own show</a>
+
+      <div class="nav-divider"></div>
+
+      <!-- Dropdown for Show guest on -->
+      <div class="nav-dropdown">
+        <button class="nav-dropdown-toggle" onclick="toggleShowGuestDropdown(this)" type="button">
+          Show guest on : <span class="arrow">▼</span>
+        </button>
+        <div class="nav-dropdown-menu" id="showGuestDropdown">
+          <a href="morning-brew.html">Morning Brew</a>
+          <a href="cocobassey.html">Lifestyle with Coco</a>
+          <a href="government-and-you.html">Government & You</a>
+          <a href="policies.html">Destination Cross River</a>
+          <a href="dreal.html">The Real Podcast</a>
+        </div>
+      </div>
+
+      <div class="nav-divider"></div>
+
+    </nav>
+  </aside>
+
+  <!-- ===== MAIN AREA ===== -->
+  <main class="main-content" id="mainContent">
+    
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+      <div class="header-logo">
+        
+      </div>
+      <div class="header-title">
+        <h1>Office Dashboard</h1>
+      </div>
+      <div class="header-date" id="currentDate">
+        <!-- Date injected via JS -->
+      </div>
+    </div>
+
+    <!-- Blank Page Area -->
+    <div class="dashboard-body">
+      <!-- This is the blank page content area -->
+    </div>
+
+    <footer class="app-footer">
+      <p>
+        <strong>African Diaspora Channels</strong> — Connecting stories, people and communities.
+        &nbsp;|&nbsp; <a href="enquiries.html">Contact</a>
+        &nbsp;|&nbsp; © 2026 ADC. All Rights Reserved.
+      </p>
+    </footer>
+  </main>
+</div>
+
+<!-- SIDEBAR MOBILE TOGGLE -->
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.querySelector('.sidebar-overlay').classList.toggle('open');
+  }
+</script>
+
+<!-- SHOW GUEST DROPDOWN TOGGLE -->
+<script>
+  function toggleShowGuestDropdown(button) {
+    const menu = document.getElementById('showGuestDropdown');
+    menu.classList.toggle('open');
+    button.classList.toggle('open');
+  }
+</script>
+
+<!-- DATE GENERATOR SCRIPT -->
+<script>
+  function setDashboardDate() {
+    const dateEl = document.getElementById('currentDate');
+    if (dateEl) {
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const today = new Date();
+      
+      const dayName = days[today.getDay()];
+      const monthName = months[today.getMonth()];
+      const day = today.getDate();
+      const year = today.getFullYear();
+      
+      // Matches format: Fri. Oct. 12, 2026
+      dateEl.textContent = `${dayName}. ${monthName}. ${day}, ${year}`;
+    }
+  }
+  // Run on load
+  setDashboardDate();
+</script>
+
+</body>
+</html>
